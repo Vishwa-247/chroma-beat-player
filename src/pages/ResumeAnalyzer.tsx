@@ -21,6 +21,7 @@ import {
 import Container from "@/components/ui/Container";
 import { useToast } from "@/hooks/use-toast"; 
 import ResumePreview from "@/components/profile/ResumePreview";
+import JobRoleSuggestions from "@/components/resume/JobRoleSuggestions";
 
 export default function ResumeAnalyzer() {
   const [step, setStep] = useState<'job-role' | 'upload' | 'analysis'>('job-role');
@@ -70,50 +71,48 @@ export default function ResumeAnalyzer() {
       formData.append('job_role', jobRole);
       formData.append('job_description', jobDescription);
 
-      // TODO: Replace with actual API call to Python backend
-      // For now, simulate analysis process
-      setTimeout(() => {
-        setAnalysisResult({
-          score: 85,
-          jobMatchScore: 78,
-          strengths: [
-            `Strong technical skills relevant to ${jobRole}`,
-            "Good project portfolio with diverse applications",
-            "Clear and well-structured layout",
-            "Relevant work experience in software development"
-          ],
-          weaknesses: [
-            "Missing quantifiable achievements",
-            "Could benefit from more leadership examples",
-            "Lacks certifications in current technologies",
-            "No mention of soft skills required for the role"
-          ],
-          skillGaps: [
-            "System Design",
-            "Cloud Architecture (AWS/Azure)",
-            "DevOps practices",
-            "Agile methodologies"
-          ],
-          recommendations: [
-            `Add specific metrics to your achievements for ${jobRole} positions`,
-            "Include relevant certifications or online courses",
-            "Highlight leadership and teamwork experiences",
-            "Add a skills section with proficiency levels",
-            `Tailor your summary to match ${jobRole} requirements`
-          ],
-          atsScore: 78,
-          keywords: ["React", "TypeScript", "JavaScript", "Node.js", "MongoDB", "Git"],
-          missingKeywords: ["Docker", "Kubernetes", "CI/CD", "Testing", "Agile"],
-          jobRole: jobRole,
-          parsedContent: "Sample parsed resume content..."
-        });
-        setIsAnalyzing(false);
-        
-        toast({
-          title: "Analysis Complete",
-          description: `Your resume has been analyzed for ${jobRole} positions!`
-        });
-      }, 3000);
+      // Call Groq-powered resume analyzer
+      const response = await fetch('/api/resume-groq/analyze-resume', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze resume');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Analysis failed');
+      }
+
+      // Transform the result to match our expected format
+      const analysisData = result.data.analysis;
+      setAnalysisResult({
+        score: analysisData.overall_score,
+        jobMatchScore: analysisData.job_match_score,
+        atsScore: analysisData.ats_score,
+        strengths: analysisData.strengths,
+        weaknesses: analysisData.weaknesses,
+        skillGaps: analysisData.skill_gaps,
+        recommendations: analysisData.recommendations,
+        keywords: analysisData.keywords_found,
+        missingKeywords: analysisData.missing_keywords,
+        jobRole: jobRole,
+        parsedContent: result.data.extracted_text,
+        deepAnalysis: analysisData.deep_analysis,
+        sectionsAnalysis: analysisData.sections_analysis,
+        improvementPriority: analysisData.improvement_priority,
+        roleSpecificAdvice: analysisData.role_specific_advice
+      });
+      
+      setIsAnalyzing(false);
+      
+      toast({
+        title: "Analysis Complete",
+        description: `Your resume has been analyzed for ${jobRole} positions!`
+      });
     } catch (error) {
       console.error("Analysis failed:", error);
       setIsAnalyzing(false);
@@ -179,7 +178,9 @@ export default function ResumeAnalyzer() {
                 Job Role Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              <JobRoleSuggestions onSelectRole={setJobRole} />
+              
               <div className="space-y-2">
                 <Label htmlFor="jobRole">Job Role/Position *</Label>
                 <Input
@@ -446,6 +447,36 @@ export default function ResumeAnalyzer() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Deep Analysis */}
+            {analysisResult.deepAnalysis && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-purple-500" />
+                    Deep Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(analysisResult.deepAnalysis).map(([key, value]: [string, any]) => (
+                      <div key={key} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium capitalize">
+                            {key.replace('_', ' ')}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {value.score}/100
+                          </span>
+                        </div>
+                        <Progress value={value.score} className="h-2" />
+                        <p className="text-xs text-muted-foreground">{value.details}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Recommendations */}
             <Card>

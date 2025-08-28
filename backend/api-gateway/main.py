@@ -29,6 +29,7 @@ AGENT_SERVICES = {
     "progress-analyst": os.getenv("PROGRESS_ANALYST_URL", "http://progress-analyst:8004"),
     "resume-analyzer": os.getenv("RESUME_ANALYZER_URL", "http://resume-analyzer:8005"),
     "profile-service": os.getenv("PROFILE_SERVICE_URL", "http://profile-service:8006"),
+    "resume-analyzer-groq": os.getenv("RESUME_ANALYZER_GROQ_URL", "http://resume-analyzer-groq:8003"),
 }
 
 # JWT Configuration
@@ -239,6 +240,33 @@ async def extract_profile_data(
         files = {"resume": (resume.filename, await resume.read(), resume.content_type)}
         data = {"user_id": user_id}
         response = await client.post(f"{AGENT_SERVICES['resume-analyzer']}/extract-profile-data", files=files, data=data)
+        return response.json()
+
+# Groq Resume Analyzer Routes
+@app.post("/api/resume-groq/analyze-resume")
+async def analyze_resume_groq(
+    resume: UploadFile = File(...),
+    job_role: str = Form(...),
+    job_description: str = Form(""),
+    user_id: Optional[str] = Form(None)
+):
+    """Analyze resume using Groq AI"""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        files = {"resume": (resume.filename, await resume.read(), resume.content_type)}
+        data = {
+            "job_role": job_role,
+            "job_description": job_description,
+            "user_id": user_id or "demo"
+        }
+        response = await client.post(f"{AGENT_SERVICES['resume-analyzer-groq']}/analyze-resume", files=files, data=data)
+        return response.json()
+
+@app.post("/api/resume-groq/quick-suggestions")
+async def get_quick_suggestions_groq(job_role: str = Form(...)):
+    """Get quick suggestions for job role"""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        data = {"job_role": job_role}
+        response = await client.post(f"{AGENT_SERVICES['resume-analyzer-groq']}/quick-suggestions", data=data)
         return response.json()
 
 if __name__ == "__main__":

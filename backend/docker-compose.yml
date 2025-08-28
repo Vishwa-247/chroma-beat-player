@@ -169,6 +169,44 @@ services:
     networks:
       - studymate_network
 
+  # Resume Analyzer with Groq
+  resume-analyzer-groq:
+    build:
+      context: ./agents/resume-analyzer-groq
+      dockerfile: Dockerfile
+    container_name: studymate_resume_analyzer_groq
+    restart: unless-stopped
+    ports:
+      - "8007:8003"
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/studymate_db?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - GROQ_API_KEY=${GROQ_API_KEY:-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}
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - studymate_network
+
+  # Orchestrator Service
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: studymate_orchestrator
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/studymate_db?authSource=admin
+    depends_on:
+      - api-gateway
+      - profile-service
+      - resume-analyzer
+      - resume-analyzer-groq
+    networks:
+      - studymate_network
+
 volumes:
   mongodb_data:
   redis_data:
