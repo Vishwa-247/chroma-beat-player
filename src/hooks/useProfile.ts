@@ -108,7 +108,7 @@ export const useProfile = () => {
         formData.append('job_role', jobRole);
       }
 
-      const response = await fetch('http://localhost:8000/api/resume/extract-profile', {
+      const response = await fetch('http://localhost:8000/api/profile/extract-profile', {
         method: 'POST',
         body: formData,
         headers: {
@@ -120,7 +120,13 @@ export const useProfile = () => {
         throw new Error('Failed to process resume');
       }
 
-      const extractedData = await response.json();
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to extract profile data');
+      }
+
+      const extractedData = result.data;
       
       // Transform and merge extracted data with current profile
       const updatedProfile: UserProfile = {
@@ -134,15 +140,13 @@ export const useProfile = () => {
         projects: extractedData.projects || profile.projects,
         skills: extractedData.skills || profile.skills,
         certifications: extractedData.certifications || profile.certifications,
-        resumeData: {
-          filename: file.name,
-          uploadDate: new Date().toISOString(),
-          extractedText: extractedData.resumeData?.extractedText || "",
-          aiAnalysis: extractedData.resumeData?.aiAnalysis || "",
-          skillGaps: extractedData.resumeData?.skillGaps || [],
-          recommendations: extractedData.resumeData?.recommendations || [],
-        },
-        updatedAt: new Date().toISOString(),
+        achievements: extractedData.achievements || [],
+        languages: extractedData.languages || [],
+        interests: extractedData.interests || [],
+        summary: extractedData.summary || "",
+        resumeData: extractedData.resumeData,
+        completionPercentage: extractedData.completionPercentage || 85,
+        updatedAt: extractedData.updatedAt,
       };
 
       localStorage.setItem(`profile_${user.id}`, JSON.stringify(updatedProfile));

@@ -4,8 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, GraduationCap, Briefcase, Code, Award, Upload, Eye } from "lucide-react";
+import ProfileSection from "@/components/profile/ProfileSection";
+import { 
+  User, 
+  GraduationCap, 
+  Briefcase, 
+  Code, 
+  Award, 
+  FolderOpen,
+  FileText,
+  CheckCircle,
+  Eye 
+} from "lucide-react";
 import Container from "@/components/ui/Container";
 import PersonalInfoForm from "@/components/profile/PersonalInfoForm";
 import EducationForm from "@/components/profile/EducationForm";
@@ -18,53 +28,72 @@ import ProfilePreview from "@/components/profile/ProfilePreview";
 import { useProfile } from "@/hooks/useProfile";
 import { UserProfile } from "@/types/profile";
 
-const TABS = [
-  { id: "personal", label: "Personal Info", icon: User },
-  { id: "education", label: "Education", icon: GraduationCap },
-  { id: "experience", label: "Experience", icon: Briefcase },
-  { id: "projects", label: "Projects", icon: Code },
-  { id: "skills", label: "Skills", icon: Award },
-  { id: "certifications", label: "Certifications", icon: Award },
-  { id: "resume", label: "Resume Upload", icon: Upload },
-  { id: "preview", label: "Preview", icon: Eye },
+const sections = [
+  { id: 'resume', name: 'Resume Upload', icon: FileText, component: ResumeUpload, description: 'Upload your resume for automatic data extraction' },
+  { id: 'personal', name: 'Personal Info', icon: User, component: PersonalInfoForm, description: 'Basic contact information and professional links' },
+  { id: 'education', name: 'Education', icon: GraduationCap, component: EducationForm, description: 'Your academic background and qualifications' },
+  { id: 'experience', name: 'Experience', icon: Briefcase, component: ExperienceForm, description: 'Professional work experience and internships' },
+  { id: 'projects', name: 'Projects', icon: FolderOpen, component: ProjectsForm, description: 'Personal and professional projects showcase' },
+  { id: 'skills', name: 'Skills', icon: Code, component: SkillsForm, description: 'Technical and soft skills with proficiency levels' },
+  { id: 'certifications', name: 'Certifications', icon: Award, component: CertificationsForm, description: 'Professional certifications and achievements' },
+  { id: 'preview', name: 'Preview', icon: Eye, component: ProfilePreview, description: 'Preview your complete profile' },
 ];
 
 export default function ProfileBuilder() {
   const { user } = useAuth();
   const { profile, updateProfile, isLoading } = useProfile();
-  const [activeTab, setActiveTab] = useState("personal");
-  const [completionPercentage, setCompletionPercentage] = useState(0);
+  const [activeSection, setActiveSection] = useState("resume");
 
-  useEffect(() => {
-    if (profile) {
-      calculateCompletion();
-    }
-  }, [profile]);
+  const currentSection = sections.find(s => s.id === activeSection) || sections[0];
 
-  const calculateCompletion = () => {
-    if (!profile) return;
+  const getCompletionStatus = (sectionId: string) => {
+    if (!profile) return false;
     
-    let completed = 0;
-    const sections = 7; // Total sections
-
-    if (profile.personalInfo.fullName && profile.personalInfo.email) completed++;
-    if (profile.education.length > 0) completed++;
-    if (profile.experience.length > 0) completed++;
-    if (profile.projects.length > 0) completed++;
-    if (profile.skills.length > 0) completed++;
-    if (profile.certifications.length > 0) completed++;
-    if (profile.resumeData?.filename) completed++;
-
-    setCompletionPercentage(Math.round((completed / sections) * 100));
+    switch (sectionId) {
+      case 'resume':
+        return !!profile.resumeData;
+      case 'personal':
+        return !!(profile.personalInfo.fullName && profile.personalInfo.email && profile.personalInfo.phone);
+      case 'education':
+        return profile.education.length > 0;
+      case 'experience':
+        return profile.experience.length > 0;
+      case 'projects':
+        return profile.projects.length > 0;
+      case 'skills':
+        return profile.skills.length > 0;
+      case 'certifications':
+        return profile.certifications.length > 0;
+      default:
+        return false;
+    }
   };
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-  };
-
-  const getTabIcon = (tabId: string) => {
-    const tab = TABS.find(t => t.id === tabId);
-    return tab ? tab.icon : User;
+  const getSectionCompletionPercentage = (sectionId: string) => {
+    if (!profile) return 0;
+    
+    switch (sectionId) {
+      case 'resume':
+        return profile.resumeData ? 100 : 0;
+      case 'personal':
+        const personalFields = ['fullName', 'email', 'phone', 'location', 'linkedin', 'github', 'portfolio'];
+        const filledPersonal = personalFields.filter(field => 
+          profile.personalInfo[field as keyof typeof profile.personalInfo]
+        ).length;
+        return Math.round((filledPersonal / personalFields.length) * 100);
+      case 'education':
+        return profile.education.length > 0 ? 100 : 0;
+      case 'experience':
+        return profile.experience.length > 0 ? 100 : 0;
+      case 'projects':
+        return profile.projects.length > 0 ? 100 : 0;
+      case 'skills':
+        return profile.skills.length > 0 ? 100 : 0;
+      case 'certifications':
+        return profile.certifications.length > 0 ? 100 : 0;
+      default:
+        return 0;
+    }
   };
 
   if (isLoading) {
@@ -91,7 +120,7 @@ export default function ProfileBuilder() {
               </p>
             </div>
             <Badge variant="secondary" className="px-4 py-2">
-              {completionPercentage}% Complete
+              {profile?.completionPercentage || 0}% Complete
             </Badge>
           </div>
           
@@ -101,9 +130,9 @@ export default function ProfileBuilder() {
                 <div className="flex-1">
                   <div className="flex justify-between text-sm text-muted-foreground mb-2">
                     <span>Profile Completion</span>
-                    <span>{completionPercentage}%</span>
+                    <span>{profile?.completionPercentage || 0}%</span>
                   </div>
-                  <Progress value={completionPercentage} className="h-2" />
+                  <Progress value={profile?.completionPercentage || 0} className="h-2" />
                 </div>
               </div>
             </CardContent>
@@ -112,78 +141,101 @@ export default function ProfileBuilder() {
 
         {/* Profile Form */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-4">
-              <CardHeader>
-                <CardTitle className="text-lg">Sections</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="space-y-1">
-                  {TABS.map((tab) => {
-                    const Icon = tab.icon;
-                    const isCompleted = getCompletionStatus(tab.id, profile);
-                    
+            <Card className="sticky top-6">
+              <CardContent className="pt-6">
+                <div className="flex justify-center mb-6">
+                  <div className="relative w-28 h-28">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-24 h-24 rounded-full border-4 border-muted relative">
+                        <div 
+                          className="absolute inset-0 rounded-full border-4 border-primary transition-all duration-500"
+                          style={{
+                            clipPath: `polygon(50% 50%, 50% 0%, ${50 + (profile?.completionPercentage || 0) * 0.5}% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 50% 0%)`
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-lg font-bold">
+                            {profile?.completionPercentage || 0}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-center mb-6">
+                  <h3 className="font-semibold text-lg mb-2">Profile Completion</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Complete all sections to maximize your profile visibility
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {sections.map((section) => {
+                    const isCompleted = getCompletionStatus(section.id);
                     return (
-                      <Button
-                        key={tab.id}
-                        variant={activeTab === tab.id ? "default" : "ghost"}
-                        className="w-full justify-start gap-3"
-                        onClick={() => handleTabChange(tab.id)}
+                      <button
+                        key={section.id}
+                        onClick={() => setActiveSection(section.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all duration-200 ${
+                          activeSection === section.id
+                            ? 'bg-primary text-primary-foreground shadow-md'
+                            : 'hover:bg-muted hover:shadow-sm'
+                        }`}
                       >
-                        <Icon className="h-4 w-4" />
-                        <span className="flex-1 text-left">{tab.label}</span>
-                        {isCompleted && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full" />
-                        )}
-                      </Button>
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1 rounded ${activeSection === section.id ? 'bg-primary-foreground/20' : ''}`}>
+                            <section.icon className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-medium">{section.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isCompleted ? (
+                            <CheckCircle className="h-4 w-4 text-success" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                          )}
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
+
+                {profile && (
+                  <div className="mt-6 pt-6 border-t space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Last updated</span>
+                      <span>{new Date(profile.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    
+                    {profile.resumeData && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-success" />
+                        <span className="text-sm text-success">Resume uploaded</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
+          {/* Main Content */}
           <div className="lg:col-span-3">
-            <Card>
-              <CardContent className="p-6">
-                {activeTab === "personal" && <PersonalInfoForm />}
-                {activeTab === "education" && <EducationForm />}
-                {activeTab === "experience" && <ExperienceForm />}
-                {activeTab === "projects" && <ProjectsForm />}
-                {activeTab === "skills" && <SkillsForm />}
-                {activeTab === "certifications" && <CertificationsForm />}
-                {activeTab === "resume" && <ResumeUpload />}
-                {activeTab === "preview" && <ProfilePreview />}
-              </CardContent>
-            </Card>
+            <ProfileSection
+              title={currentSection.name}
+              description={currentSection.description}
+              isCompleted={getCompletionStatus(activeSection)}
+              completionPercentage={getSectionCompletionPercentage(activeSection)}
+              icon={currentSection.icon && <currentSection.icon className="h-5 w-5" />}
+            >
+              <currentSection.component />
+            </ProfileSection>
           </div>
         </div>
       </div>
     </Container>
   );
-}
-
-function getCompletionStatus(tabId: string, profile: UserProfile | null): boolean {
-  if (!profile) return false;
-  
-  switch (tabId) {
-    case "personal":
-      return !!(profile.personalInfo.fullName && profile.personalInfo.email);
-    case "education":
-      return profile.education.length > 0;
-    case "experience":
-      return profile.experience.length > 0;
-    case "projects":
-      return profile.projects.length > 0;
-    case "skills":
-      return profile.skills.length > 0;
-    case "certifications":
-      return profile.certifications.length > 0;
-    case "resume":
-      return !!profile.resumeData?.filename;
-    case "preview":
-      return true; // Always available
-    default:
-      return false;
-  }
 }

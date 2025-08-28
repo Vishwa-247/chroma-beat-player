@@ -76,6 +76,10 @@ export interface UserProfile {
     skillGaps?: string[];
     recommendations?: string[];
   };
+  achievements?: string[];
+  languages?: string[];
+  interests?: string[];
+  summary?: string;
   completionPercentage: number;
   createdAt: string;
   updatedAt: string;

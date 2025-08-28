@@ -28,7 +28,7 @@ AGENT_SERVICES = {
     "chat-mentor": os.getenv("CHAT_MENTOR_URL", "http://chat-mentor:8003"),
     "progress-analyst": os.getenv("PROGRESS_ANALYST_URL", "http://progress-analyst:8004"),
     "resume-analyzer": os.getenv("RESUME_ANALYZER_URL", "http://resume-analyzer:8005"),
-    "exam-prep": os.getenv("EXAM_PREP_URL", "http://exam-prep:8006"),
+    "profile-service": os.getenv("PROFILE_SERVICE_URL", "http://profile-service:8006"),
 }
 
 # JWT Configuration
@@ -201,12 +201,40 @@ async def analyze_resume(
         response = await client.post(f"{AGENT_SERVICES['resume-analyzer']}/analyze-resume", files=files, data=data)
         return response.json()
 
+# Profile Service Routes
+@app.post("/api/profile/extract-profile")
+async def extract_profile(
+    resume: UploadFile = File(...),
+    user_id: str = Form(...),
+    user_id_verified: str = Depends(verify_token)
+):
+    """Extract profile data from resume using Groq AI"""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        files = {"resume": (resume.filename, await resume.read(), resume.content_type)}
+        data = {"user_id": user_id}
+        response = await client.post(f"{AGENT_SERVICES['profile-service']}/extract-profile", files=files, data=data)
+        return response.json()
+
+@app.get("/api/profile/{user_id}")
+async def get_profile(user_id: str, user_id_verified: str = Depends(verify_token)):
+    """Get user profile"""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(f"{AGENT_SERVICES['profile-service']}/profile/{user_id}")
+        return response.json()
+
+@app.put("/api/profile/{user_id}")
+async def update_profile(user_id: str, profile_data: dict, user_id_verified: str = Depends(verify_token)):
+    """Update user profile"""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.put(f"{AGENT_SERVICES['profile-service']}/profile/{user_id}", json=profile_data)
+        return response.json()
+
 @app.post("/resume/extract-profile")
 async def extract_profile_data(
     resume: UploadFile = File(...),
     user_id: str = Form(...)
 ):
-    """Extract profile data from resume"""
+    """Extract profile data from resume (legacy endpoint)"""
     async with httpx.AsyncClient(timeout=60.0) as client:
         files = {"resume": (resume.filename, await resume.read(), resume.content_type)}
         data = {"user_id": user_id}

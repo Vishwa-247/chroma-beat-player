@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, CheckCircle, AlertCircle, Download, Trash2 } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { useToast } from "@/hooks/use-toast";
-import ResumePreview from "./ResumePreview";
-import { resumeService } from "@/api/services/resumeService";
+import DocumentPreview from "./DocumentPreview";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ResumeUpload() {
@@ -18,6 +17,7 @@ export default function ResumeUpload() {
   const { toast } = useToast();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -45,39 +45,44 @@ export default function ResumeUpload() {
     }
 
     try {
-      // Simulate upload progress
-      setUploadProgress(0);
       setCurrentFile(file);
+      setIsProcessing(true);
+      setUploadProgress(0);
       
+      // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
             clearInterval(progressInterval);
             return 90;
           }
-          return prev + 10;
+          return prev + 15;
         });
-      }, 200);
+      }, 300);
 
-      // Use the updated uploadResume method that calls FastAPI
+      // Use the updated uploadResume method that calls the profile service
       await uploadResume(file);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
       
       toast({
-        title: "Resume uploaded successfully",
-        description: "Profile has been updated with resume data",
+        title: "Resume processed successfully",
+        description: "Profile has been automatically updated with extracted data",
       });
       
-      setTimeout(() => setUploadProgress(0), 2000);
+      setTimeout(() => {
+        setUploadProgress(0);
+        setIsProcessing(false);
+      }, 2000);
     } catch (error) {
       console.error("Upload failed:", error);
       setUploadProgress(0);
       setCurrentFile(null);
+      setIsProcessing(false);
       toast({
-        title: "Upload failed",
-        description: "Please try again",
+        title: "Processing failed",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     }
@@ -113,7 +118,7 @@ export default function ResumeUpload() {
       </div>
 
       {/* Upload Area */}
-      {!currentResume && (
+      {!currentResume && !currentFile && (
         <Card>
           <CardContent className="pt-6">
             <div
@@ -135,15 +140,19 @@ export default function ResumeUpload() {
               <p className="text-sm text-muted-foreground">
                 Supports PDF, DOC, and DOCX files up to 5MB
               </p>
-              <Button className="mt-4" disabled={isLoading}>
-                {isLoading ? "Processing..." : "Choose File"}
+              <Button className="mt-4" disabled={isLoading || isProcessing}>
+                {isLoading || isProcessing ? "Processing..." : "Choose File"}
               </Button>
             </div>
 
             {uploadProgress > 0 && (
               <div className="mt-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Uploading and analyzing...</span>
+                  <span>
+                    {uploadProgress < 30 ? "Uploading document..." : 
+                     uploadProgress < 70 ? "Extracting text..." : 
+                     uploadProgress < 90 ? "AI processing..." : "Completing..."}
+                  </span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <Progress value={uploadProgress} />
@@ -151,6 +160,18 @@ export default function ResumeUpload() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Document Preview */}
+      {currentFile && !currentResume && (
+        <DocumentPreview 
+          file={currentFile} 
+          onRemove={() => {
+            setCurrentFile(null);
+            setUploadProgress(0);
+            setIsProcessing(false);
+          }}
+        />
       )}
 
       {/* Current Resume */}
@@ -225,16 +246,14 @@ export default function ResumeUpload() {
               </div>
             )}
 
-            {/* Resume Preview */}
-            {currentFile && <ResumePreview file={currentFile} />}
 
             {/* Upload New Resume */}
             <div className="pt-4 border-t">
               <div {...getRootProps()} className="cursor-pointer">
                 <input {...getInputProps()} />
-                <Button variant="outline" className="w-full" disabled={isLoading}>
+                <Button variant="outline" className="w-full" disabled={isLoading || isProcessing}>
                   <Upload className="h-4 w-4 mr-2" />
-                  {isLoading ? "Processing..." : "Upload New Resume"}
+                  {isLoading || isProcessing ? "Processing..." : "Upload New Resume"}
                 </Button>
               </div>
             </div>
