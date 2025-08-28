@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import httpx
 import os
 from typing import Optional
-import jwt
+from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
 app = FastAPI(title="StudyMate API Gateway", version="1.0.0")
@@ -52,7 +52,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user_id
-    except jwt.PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def forward_to_agent(agent_name: str, path: str, method: str = "GET", data: dict = None, headers: dict = None):
