@@ -4,16 +4,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import Container from "@/components/ui/Container";
 import { Progress } from "@/components/ui/progress";
 import { dsaTopics } from "@/data/dsaProblems";
-import { CheckCircle2, ChevronLeft, Circle, ExternalLink } from "lucide-react";
-import { useState, useCallback } from "react";
+import { CheckCircle2, ChevronLeft, Circle, ExternalLink, Star } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import InlineFeedback from "@/components/course/InlineFeedback";
+import RouteFilters from "@/components/dsa/RouteFilters";
+import { useAuth } from "@/context/AuthContext";
+import { dsaService } from "@/api/services/dsaService";
+import { toast } from "sonner";
 
 const DSATopic = () => {
   const { topicId } = useParams();
+  const { user } = useAuth();
   const topic = dsaTopics.find(t => t.id === topicId);
   const [completedProblems, setCompletedProblems] = useState<Set<string>>(new Set());
   const [expandedFeedback, setExpandedFeedback] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [filters, setFilters] = useState({ difficulty: [] });
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   if (!topic) {
     return (
@@ -47,7 +55,52 @@ const DSATopic = () => {
     }
   }, [completedProblems]);
 
-  const progressPercentage = (completedProblems.size / topic.problems.length) * 100;
+  const toggleFavorite = useCallback(async (problemName: string) => {
+    if (!user) {
+      toast.error("Please sign in to add favorites");
+      return;
+    }
+
+    try {
+      const isFavorite = favorites.includes(problemName);
+      if (isFavorite) {
+        await dsaService.removeFromFavorites(user.id, problemName);
+        setFavorites(prev => prev.filter(fav => fav !== problemName));
+        toast.success("Removed from favorites");
+      } else {
+        await dsaService.addToFavorites(user.id, problemName);
+        setFavorites(prev => [...prev, problemName]);
+        toast.success("Added to favorites");
+      }
+    } catch (error) {
+      toast.error("Failed to update favorites");
+    }
+  }, [user, favorites]);
+
+  // Filter problems based on difficulty and favorites
+  const filteredProblems = useMemo(() => {
+    if (!topic) return [];
+    
+    let problems = topic.problems;
+    
+    // Filter by difficulty
+    if (filters.difficulty.length > 0) {
+      problems = problems.filter(problem => 
+        filters.difficulty.includes(problem.difficulty || 'Medium')
+      );
+    }
+    
+    // Filter by favorites
+    if (showFavoritesOnly) {
+      problems = problems.filter(problem => 
+        favorites.includes(problem.name)
+      );
+    }
+    
+    return problems;
+  }, [topic, filters, favorites, showFavoritesOnly]);
+
+  const progressPercentage = topic ? (completedProblems.size / topic.problems.length) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -83,6 +136,9 @@ const DSATopic = () => {
                 <Badge variant="outline" className="text-sm">
                   {completedProblems.size}/{topic.problems.length} solved
                 </Badge>
+                <Badge variant="secondary" className="text-sm">
+                  {filteredProblems.length} problems shown
+                </Badge>
                 <div className="flex-1 max-w-xs">
                   <Progress value={progressPercentage} className="h-3" />
                 </div>
@@ -90,56 +146,100 @@ const DSATopic = () => {
             </div>
           </div>
 
-          {/* Problems List */}
-          <div className="space-y-3">
-            {topic.problems.map((problem, index) => {
-              const isCompleted = completedProblems.has(problem.name);
-              return (
-                <Card 
-                  key={index} 
-                  className={`group hover:shadow-md transition-all duration-200 ${
-                    isCompleted ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/20'
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => toggleProblem(problem.name)}
-                        className="transition-colors hover:scale-110"
-                      >
-                        {isCompleted ? (
-                          <CheckCircle2 className="w-6 h-6 text-primary" />
-                        ) : (
-                          <Circle className="w-6 h-6 text-muted-foreground hover:text-primary" />
-                        )}
-                      </button>
-                      
-                      <div className="flex-1">
-                        <h3 className={`text-lg font-medium transition-colors ${
-                          isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
-                        }`}>
-                          {problem.name}
-                        </h3>
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        asChild
-                      >
-                        <a
-                          href={problem.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2"
-                        >
-                          Solve
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </Button>
-                    </div>
-                  </CardContent>
+          {/* Filters */}
+          <div className="grid lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-1">
+              <RouteFilters
+                filters={filters}
+                onFiltersChange={setFilters}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                showFavoritesOnly={showFavoritesOnly}
+                onShowFavoritesChange={setShowFavoritesOnly}
+              />
+            </div>
+
+            {/* Problems List */}
+            <div className="lg:col-span-3">
+              <div className="space-y-3">
+                {filteredProblems.map((problem, index) => {
+                  const isCompleted = completedProblems.has(problem.name);
+                  const isFavorite = favorites.includes(problem.name);
+                  return (
+                    <Card 
+                      key={index} 
+                      className={`group hover:shadow-md transition-all duration-200 ${
+                        isCompleted ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/20'
+                      }`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => toggleProblem(problem.name)}
+                            className="transition-colors hover:scale-110"
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-6 h-6 text-primary" />
+                            ) : (
+                              <Circle className="w-6 h-6 text-muted-foreground hover:text-primary" />
+                            )}
+                          </button>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className={`text-lg font-medium transition-colors ${
+                                isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                              }`}>
+                                {problem.name}
+                              </h3>
+                              {problem.difficulty && (
+                                <Badge 
+                                  variant={
+                                    problem.difficulty === 'Easy' ? 'default' : 
+                                    problem.difficulty === 'Medium' ? 'secondary' : 
+                                    'destructive'
+                                  }
+                                  className="text-xs"
+                                >
+                                  {problem.difficulty}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleFavorite(problem.name)}
+                              className="transition-colors hover:scale-110"
+                            >
+                              <Star 
+                                className={`w-5 h-5 ${
+                                  isFavorite 
+                                    ? 'text-yellow-500 fill-yellow-500' 
+                                    : 'text-muted-foreground hover:text-yellow-500'
+                                }`} 
+                              />
+                            </button>
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              asChild
+                            >
+                              <a
+                                href={problem.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2"
+                              >
+                                Solve
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
                   
                   {/* Inline Feedback */}
                   {isCompleted && (
@@ -155,8 +255,10 @@ const DSATopic = () => {
                     </div>
                   )}
                 </Card>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Back Button */}

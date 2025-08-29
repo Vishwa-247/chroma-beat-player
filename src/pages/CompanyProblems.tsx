@@ -5,17 +5,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import Container from "@/components/ui/Container";
 import { Progress } from "@/components/ui/progress";
 import { companies } from "@/data/companyProblems";
-import { ArrowLeft, ExternalLink } from "lucide-react";
-import { useCallback, useState } from "react";
+import { ArrowLeft, ExternalLink, Star } from "lucide-react";
+import { useCallback, useState, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import InlineFeedback from "@/components/course/InlineFeedback";
+import RouteFilters from "@/components/dsa/RouteFilters";
+import { useAuth } from "@/context/AuthContext";
+import { dsaService } from "@/api/services/dsaService";
+import { toast } from "sonner";
 
 const CompanyProblems = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
   const company = companies.find(c => c.id === companyId);
   
   const [completedProblems, setCompletedProblems] = useState(new Set<string>());
   const [expandedFeedback, setExpandedFeedback] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [filters, setFilters] = useState({ difficulty: [] });
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const toggleProblem = useCallback((problemName: string) => {
     const isCurrentlyCompleted = completedProblems.has(problemName);
@@ -36,6 +44,51 @@ const CompanyProblems = () => {
     }
   }, [completedProblems]);
 
+  const toggleFavorite = useCallback(async (problemName: string) => {
+    if (!user) {
+      toast.error("Please sign in to add favorites");
+      return;
+    }
+
+    try {
+      const isFavorite = favorites.includes(problemName);
+      if (isFavorite) {
+        await dsaService.removeFromFavorites(user.id, problemName);
+        setFavorites(prev => prev.filter(fav => fav !== problemName));
+        toast.success("Removed from favorites");
+      } else {
+        await dsaService.addToFavorites(user.id, problemName);
+        setFavorites(prev => [...prev, problemName]);
+        toast.success("Added to favorites");
+      }
+    } catch (error) {
+      toast.error("Failed to update favorites");
+    }
+  }, [user, favorites]);
+
+  // Filter problems based on difficulty and favorites
+  const filteredProblems = useMemo(() => {
+    if (!company) return [];
+    
+    let problems = company.problems;
+    
+    // Filter by difficulty
+    if (filters.difficulty.length > 0) {
+      problems = problems.filter(problem => 
+        filters.difficulty.includes(problem.difficulty)
+      );
+    }
+    
+    // Filter by favorites
+    if (showFavoritesOnly) {
+      problems = problems.filter(problem => 
+        favorites.includes(problem.name)
+      );
+    }
+    
+    return problems;
+  }, [company, filters, favorites, showFavoritesOnly]);
+
   if (!company) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
@@ -51,7 +104,7 @@ const CompanyProblems = () => {
     );
   }
 
-  const progressPercentage = (completedProblems.size / company.totalProblems) * 100;
+  const progressPercentage = company ? (completedProblems.size / company.totalProblems) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -64,7 +117,9 @@ const CompanyProblems = () => {
                 DSA Sheet
               </Link>
               <span>/</span>
-              <span>Companies</span>
+              <Link to="/dsa-sheet" className="hover:text-primary transition-colors">
+                Companies
+              </Link>
               <span>/</span>
               <span className="text-foreground">{company.title}</span>
             </div>
@@ -84,9 +139,14 @@ const CompanyProblems = () => {
                 <h1 className="text-4xl font-bold text-foreground mb-2">
                   {company.title} Problems
                 </h1>
-                <p className="text-xl text-muted-foreground">
-                  {completedProblems.size}/{company.totalProblems} problems solved
-                </p>
+                <div className="flex items-center gap-4 mb-2">
+                  <Badge variant="outline" className="text-sm">
+                    {completedProblems.size}/{company.totalProblems} solved
+                  </Badge>
+                  <Badge variant="secondary" className="text-sm">
+                    {filteredProblems.length} problems shown
+                  </Badge>
+                </div>
                 {company.links && company.links.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4">
                     {company.links.map(link => (
@@ -108,71 +168,99 @@ const CompanyProblems = () => {
             </div>
           </div>
 
-          {/* Problems List */}
-          <div className="space-y-4">
-            {company.problems.map((problem, index) => {
-              const isCompleted = completedProblems.has(problem.name);
-              
-              return (
-                <Card 
-                  key={problem.name} 
-                  className={`group transition-all duration-200 ${
-                    isCompleted 
-                      ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
-                      : 'hover:shadow-md border-border'
-                  }`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Checkbox
-                          checked={isCompleted}
-                          onCheckedChange={() => toggleProblem(problem.name)}
-                          className="flex-shrink-0"
-                        />
-                        
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <Badge variant="outline" className="text-xs font-mono">
-                              {String(index + 1).padStart(2, '0')}
-                            </Badge>
-                            <h3 className={`font-semibold text-lg ${isCompleted ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                              {problem.name}
-                            </h3>
-                            <Badge 
-                              variant={
-                                problem.difficulty === 'Easy' ? 'default' : 
-                                problem.difficulty === 'Medium' ? 'secondary' : 
-                                'destructive'
-                              }
-                              className="text-xs"
+          {/* Filters */}
+          <div className="grid lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-1">
+              <RouteFilters
+                filters={filters}
+                onFiltersChange={setFilters}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                showFavoritesOnly={showFavoritesOnly}
+                onShowFavoritesChange={setShowFavoritesOnly}
+              />
+            </div>
+            
+            {/* Problems List */}
+            <div className="lg:col-span-3">
+              <div className="space-y-4">
+                {filteredProblems.map((problem, index) => {
+                  const isCompleted = completedProblems.has(problem.name);
+                  const isFavorite = favorites.includes(problem.name);
+                  
+                  return (
+                    <Card 
+                      key={problem.name} 
+                      className={`group transition-all duration-200 ${
+                        isCompleted 
+                          ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
+                          : 'hover:shadow-md border-border'
+                      }`}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <Checkbox
+                              checked={isCompleted}
+                              onCheckedChange={() => toggleProblem(problem.name)}
+                              className="flex-shrink-0"
+                            />
+                            
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  {String(index + 1).padStart(2, '0')}
+                                </Badge>
+                                <h3 className={`font-semibold text-lg ${isCompleted ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                  {problem.name}
+                                </h3>
+                                <Badge 
+                                  variant={
+                                    problem.difficulty === 'Easy' ? 'default' : 
+                                    problem.difficulty === 'Medium' ? 'secondary' : 
+                                    'destructive'
+                                  }
+                                  className="text-xs"
+                                >
+                                  {problem.difficulty}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleFavorite(problem.name)}
+                              className="transition-colors hover:scale-110"
                             >
-                              {problem.difficulty}
-                            </Badge>
+                              <Star 
+                                className={`w-5 h-5 ${
+                                  isFavorite 
+                                    ? 'text-yellow-500 fill-yellow-500' 
+                                    : 'text-muted-foreground hover:text-yellow-500'
+                                }`} 
+                              />
+                            </button>
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              asChild
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <a 
+                                href={problem.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                Solve
+                              </a>
+                            </Button>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <a 
-                            href={problem.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            Solve
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
+                      </CardContent>
                   
                   {/* Inline Feedback */}
                   {isCompleted && (
@@ -188,8 +276,10 @@ const CompanyProblems = () => {
                     </div>
                   )}
                 </Card>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Back Button */}
