@@ -14,11 +14,11 @@ const Index = () => {
 
   const features = [
     {
-      id: "courses",
-      title: "AI Course Generation",
-      description: "Create customized courses by specifying topic and difficulty. Get comprehensive notes, flashcards, and practice questions.",
+      id: "dsa",
+      title: "DSA Problem Sheets",
+      description: "Practice data structures and algorithms with curated problems from top companies. Track progress and filter by difficulty.",
       icon: <BookOpen className="h-12 w-12 text-primary" />,
-      link: "/course-generator"
+      link: "/dsa-sheet"
     },
     {
       id: "interview",
@@ -28,18 +28,18 @@ const Index = () => {
       link: "/mock-interview"
     },
     {
-      id: "analysis",
-      title: "Video Analysis",
-      description: "Get insights on your confidence, engagement, and non-verbal communication during interview practice.",
+      id: "resume",
+      title: "Resume Analyzer",
+      description: "Get AI-powered analysis of your resume with scoring, suggestions, and job role compatibility insights.",
       icon: <Sparkles className="h-12 w-12 text-primary" />,
-      link: "/future-integrations"
+      link: "/resume-analyzer"
     },
     {
-      id: "community",
-      title: "AI Interview Agents",
-      description: "Practice with specialized AI agents for technical, HR, aptitude, and management rounds.",
+      id: "profile",
+      title: "Profile Builder",
+      description: "Build comprehensive professional profiles with AI assistance and document analysis capabilities.",
       icon: <Users className="h-12 w-12 text-primary" />,
-      link: "/future-integrations"
+      link: "/profile-builder"
     }
   ];
 
@@ -76,21 +76,21 @@ const Index = () => {
         <Container>
           <div className="max-w-3xl mx-auto text-center mb-12">
             <h1 className="text-gradient animate-fade-in font-bold mb-6">
-              AI-Powered Learning & Interview Preparation Platform
+              ByteRover: AI-Powered Career Development Platform
             </h1>
             <p className="text-xl text-muted-foreground animate-fade-up mb-8">
-              Generate custom courses, practice with intelligent mock interviews,
-              and receive detailed feedback to master any subject or ace your next interview.
+              Master DSA problems, generate custom courses, practice mock interviews, 
+              analyze resumes, and build your professional profile with AI assistance.
             </p>
             <div className="flex flex-wrap gap-4 justify-center animate-fade-up delay-100">
               <Button size="lg" asChild>
-                <Link to="/course-generator">
-                  Generate Courses <ArrowRight className="ml-2 h-4 w-4" />
+                <Link to="/dsa-sheet">
+                  Practice DSA <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
                 <Link to="/mock-interview">
-                  Practice Interviews <ArrowRight className="ml-2 h-4 w-4" />
+                  Mock Interviews <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
             </div>

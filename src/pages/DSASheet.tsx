@@ -12,13 +12,13 @@ import { companies } from "@/data/companyProblems";
 import DSAFilters from "@/components/dsa/DSAFilters";
 import { useDSAFilters } from "@/hooks/useDSAFilters";
 import { dsaService } from "@/api/services/dsaService";
-import { useAuthActions } from "@/hooks/useAuthActions";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const DSASheet = () => {
   const [activeTab, setActiveTab] = useState("topics");
   const [favorites, setFavorites] = useState<string[]>([]);
-  const { user } = useAuthActions();
+  const { user } = useAuth();
   
   const {
     filters,
